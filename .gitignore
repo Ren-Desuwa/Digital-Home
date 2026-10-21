@@ -1,0 +1,28 @@
+# Dependencies and generated output
+node_modules/
+dist/
+.next/
+.vinext/
+coverage/
+*.tsbuildinfo
+
+# Credentials and local configuration
+.env*
+.dev.vars*
+!.dev.vars.example
+*.pem
+*.key
+
+# Local runtime data and tool state
+.wrangler/
+.sites-runtime/
+.agents/
+.codex/
+.aws/
+outputs/
+work/
+
+# OS files and debug logs
+.DS_Store
+Thumbs.db
+*.log
