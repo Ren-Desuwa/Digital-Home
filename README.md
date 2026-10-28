@@ -1,10 +1,24 @@
 # Digital Home
 
+## Project roadmap
+
+Read [ROADMAP_NEXT.md](ROADMAP_NEXT.md) for the canonical active roadmap: public registration and multiple households, architecture migration, chat, the customizable 3D home/furniture builder, advanced design, collaboration, and mobile/public beta. It distinguishes implemented local features from proposed milestones and unresolved decisions. [ROADMAP.md](ROADMAP.md) records the original website phases.
+
 Google sign-in is supported alongside passwords and child PINs. See [Google setup](web/GOOGLE_LOGIN.md) for Google Cloud origins, callback URLs, Cloudflare secrets, migration, and deployment commands. Existing members connect Google from their own Household card after signing in.
 
 A private household hub for chores, tasks, meals, groceries, and optional rewards.
 
 The application lives in **web/**. It uses React 19, Vinext, and a Cloudflare D1 (SQLite) database. Household records live on the server; browser storage is not the source of truth. The default timezone is Asia/Manila.
+
+## Home Studio · Vercel preview
+
+The standalone grid builder is in `web/builder/`. It has a real Three.js scene, a 20 × 20 m tile grid, floor painting, edge walls, doors/windows, nine furniture pieces, collision checks, moving/rotation/colors, room naming, undo/redo, camera controls and a 2D fallback. It opens with a furnished four-room sample and offers an empty plot.
+
+Run `npm --prefix web run dev:builder` (port 5174), `npm --prefix web run test:builder`, and `npm --prefix web run build:builder`. The static build is emitted to ignored `web/dist-builder/`.
+
+Import this GitHub repository into Vercel using the repository root. The root `vercel.json` sets the install/build commands and output directory; `web/vercel.json` also supports an existing Vercel project rooted at `web`. No environment variables or database are required for Studio. Both `/` and `/builder` open Studio in that deployment. Avoid overriding these settings with a Next.js framework preset.
+
+Studio automatically saves in this browser, with explicit save, JSON export/import and PNG snapshots. It does not synchronize layouts between devices, authenticate household members, or connect the new grid schema to chores. The existing Cloudflare/D1 household app is a separate deployment, retains its original layout schema, and exposes Studio at `/builder` with a link from its existing home view. No household data is included in the static preview.
 
 ## Run locally
 
@@ -33,6 +47,16 @@ The first visitor creates the household and first parent account. **Save the par
 
 For a home display, a parent pairs that browser in Household, then signs out. The overview stays available for 30 days. Children switch to their profiles using a 4–8 digit PIN from Household. Parent controls require a parent email/password login. Disconnecting the screen removes local pairing; parents can revoke all paired screens. PIN access is deliberately limited to paired devices.
 
+## New local features: device inventory and 3D home
+
+Parents can manage device records under **Household → Our devices**: name/model, type, operating system, browser, owner, compatibility status and notes. Compatibility is entered manually after testing; inventory entries do not grant access or pair browsers.
+
+**Our home · 3D** starts with a clearly labelled sample layout. Parents use **Build & furnish** to add and position rectangular rooms, set dimensions and floor colors, and add/move/rotate furniture using numeric controls. Camera rotation, zoom, cutaway walls and a top view are available to all household viewers. Save explicitly to share the layout; unsaved drafts remain while switching tabs. Layouts are stored on the server and stale concurrent saves are rejected.
+
+After saving a layout, parents can link existing routines to rooms from **Household view**, or choose a room when adding a new chore. The 3D dashboard shows due/pending chore counts, assigned members and the manual home/away roster. Complete/review chores in **Chores & tasks**. Removing a room clears its routine links and removes its furniture, while preserving chores and task history.
+
+This starter supports one floor, up to 20 rooms, 100 furniture items and a 30 × 30 m site. Doors/windows, direct object dragging, multiple floors and member room locations are not implemented. These new features have not been deployed or browser-tested yet. See [the active roadmap](ROADMAP_NEXT.md).
+
 ## Validation
 
 ```sh
@@ -58,4 +82,4 @@ The Sites preview retains the platform's owner-private access boundary, with hou
 
 Website workflows for phases 1–4 are implemented. A real family trial is still needed to validate routines and usability. In-app reminders show due/overdue work and pending approvals. External email, device notifications, mobile packaging, offline editing, and location tracking remain deferred.
 
-See [ROADMAP.md](ROADMAP.md) for milestones and acceptance criteria.
+See [ROADMAP_NEXT.md](ROADMAP_NEXT.md) for the active expansion milestones and [ROADMAP.md](ROADMAP.md) for the original website acceptance criteria.

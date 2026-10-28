@@ -1,4 +1,5 @@
 import { GoogleError, googleConfigured, startGoogle, finishGoogle, redirect, googleCookie, saveGoogleSetup, googleSetupProfile, clearGoogleSetup } from './google.mjs';
+import { validateHomePlan } from './home-plan.mjs';
 const DAY = 86400000;
 const encoder = new TextEncoder();
 export class AppError extends Error { constructor(message, status = 400) { super(message); this.status = status; } }
@@ -229,6 +230,50 @@ export async function handle(request, db, env = {}, transport = fetch) {
       fail(user, 'Please sign in.', 401);
       materialize(s);
       switch (path) {
+        case 'home-plan/save': {
+          owner(s, user);
+          fail(Number.isInteger(b.version) && b.version === (s.homePlanVersion || 0), 'The home layout changed on another device. Reload the saved layout before saving.', 409);
+          let plan;
+          try { plan = validateHomePlan(b.plan); } catch (error) { throw new AppError(error.message); }
+          s.homePlan = plan;
+          const roomIds = new Set(plan.rooms.map(r => r.id));
+          s.chores.forEach(c => { if (c.roomId && !roomIds.has(c.roomId)) c.roomId = null; });
+          s.homePlanVersion = (s.homePlanVersion || 0) + 1;
+          audit(s, user, 'updated the 3D home layout');
+          extra.homePlanVersion = s.homePlanVersion;
+          break;
+        }
+        case 'inventory/save': {
+          owner(s, user);
+          s.deviceInventory ||= [];
+          const existing = b.id ? s.deviceInventory.find(d => d.id === b.id) : null;
+          fail(!b.id || existing, 'Device not found.', 404);
+          fail(existing || s.deviceInventory.length < 60, 'Use up to 60 inventory devices.');
+          fail(['phone', 'tablet', 'computer', 'shared-screen'].includes(b.kind), 'Choose a device type.');
+          fail(['untested', 'working', 'issues'].includes(b.compatibility), 'Choose a compatibility status.');
+          if (b.memberId) member(s, b.memberId);
+          const device = { id: existing?.id || id(), name: text(b.name, 'Device name', 80), kind: b.kind, system: text(b.system, 'Operating system', 80), browser: text(b.browser, 'Browser', 80), memberId: b.memberId || null, compatibility: b.compatibility, notes: typeof b.notes === 'string' ? b.notes.trim().slice(0, 250) : '' };
+          if (existing) s.deviceInventory = s.deviceInventory.map(d => d.id === existing.id ? device : d);
+          else s.deviceInventory.push(device);
+          audit(s, user, `${existing ? 'updated' : 'added'} device inventory: ${device.name}`);
+          break;
+        }
+        case 'inventory/remove': {
+          owner(s, user);
+          fail((s.deviceInventory || []).some(d => d.id === b.id), 'Device not found.', 404);
+          s.deviceInventory = s.deviceInventory.filter(d => d.id !== b.id);
+          audit(s, user, 'removed a device from the inventory');
+          break;
+        }
+        case 'chores/set-room': {
+          owner(s, user);
+          const chore = s.chores.find(c => c.id === b.id && !c.archived);
+          fail(chore, 'Routine not found.', 404);
+          fail(!b.roomId || s.homePlan?.rooms.some(r => r.id === b.roomId), 'Choose a saved room.');
+          chore.roomId = b.roomId || null;
+          audit(s, user, `updated the room for ${chore.title}`);
+          break;
+        }
         case 'pair': { owner(s, user); const token = id() + id(); s.devices.push({ id: id(), parentId: user.id, hash: await digest(token), expires: Date.now() + 30 * DAY }); cookies.push(cookie(request, 'dh_device', token, 30 * 86400)); audit(s, user, 'paired a shared home screen'); break; }
         case 'devices/revoke': owner(s, user); s.devices = []; audit(s, user, 'revoked all paired screens'); break;
         case 'members/add': {
@@ -258,11 +303,13 @@ export async function handle(request, db, env = {}, transport = fetch) {
         }
         case 'chores/add': {
           owner(s, user); fail(s.chores.length < 300, 'Archive existing chores before adding more.');
+          fail(!b.roomId || s.homePlan?.rooms.some(r => r.id === b.roomId), 'Choose a saved room.');
           fail(['once', 'daily', 'weekly'].includes(b.repeat), 'Choose a schedule.');
           fail(Array.isArray(b.assignees) && b.assignees.length > 0 && new Set(b.assignees).size === b.assignees.length, 'Choose assignees in rotation order.'); b.assignees.forEach(mid => member(s, mid));
           const startDate = date(b.date); fail(startDate >= addDays(today(), -31) && startDate <= addDays(today(), 365), 'Start within the past month or next year.');
           fail(/^([01]\d|2[0-3]):[0-5]\d$/.test(b.time), 'Choose a due time.');
           s.chores.push({ id: id(), title: text(b.title, 'Task title'), repeat: b.repeat, assignees: b.assignees, startDate, nextDate: startDate, sequence: 0, time: b.time, points: number(b.points || 0, 0, 1000, 'Points') });
+          if (b.roomId) s.chores[s.chores.length - 1].roomId = b.roomId;
           materialize(s); audit(s, user, `added ${b.title}`); break;
         }
         case 'chores/archive': { owner(s, user); const c = s.chores.find(c => c.id === b.id); fail(c, 'Chore not found.', 404); c.archived = true; s.occurrences = s.occurrences.filter(o => o.choreId !== c.id || o.status !== 'open' || o.date < today()); audit(s, user, `archived ${c.title}`); break; }

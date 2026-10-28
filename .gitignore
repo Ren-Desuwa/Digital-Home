@@ -26,3 +26,7 @@ work/
 .DS_Store
 Thumbs.db
 *.log
+
+# Standalone Vercel studio output
+dist-builder/
+.vercel/

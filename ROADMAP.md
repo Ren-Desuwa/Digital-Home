@@ -1,5 +1,7 @@
 # Digital Home roadmap
 
+For the canonical active roadmap, read [ROADMAP_NEXT.md](ROADMAP_NEXT.md): public-platform accounts, stack/data migration, chat, the Sims-style 3D home/furniture builder, advanced design, collaboration, and mobile/public beta. It also tracks the local starter implementation and validation backlog. The phases below are the original website scope, not the full future product roadmap.
+
 ## Phase 1 — Foundation and accounts
 
 Implemented: responsive private household website, parent/child roles, email/password and parent-created child username/password login, parent recovery codes, child credential resets, paired shared screens and child PIN switching. Server-side authorization gates parent actions.

@@ -172,3 +172,102 @@ test('Manila dates roll over correctly and malformed calendar dates are rejected
   const f = await fixture();
   assert.equal((await f.parent.send('meals/save', { recipeId: 'adobo', date: '2026-02-30', slot: 'dinner' })).status, 400);
 });
+
+test('device inventory persists across clients; only parents can manage it and it does not pair devices', async () => {
+  const f = await fixture();
+  const device = { name: 'Kitchen tablet', kind: 'tablet', system: 'Android 15', browser: 'Chrome', compatibility: 'untested', memberId: f.childId, notes: 'Check touch controls' };
+  assert.equal((await f.child.send('inventory/save', device)).status, 403);
+  assert.equal((await client(f.db).send('inventory/save', device)).status, 401);
+  assert.equal((await f.parent.send('inventory/save', device)).status, 200);
+  let state = (await f.child.send('state')).body;
+  const saved = state.deviceInventory[0];
+  assert.equal(saved.name, device.name); assert.equal(state.paired, false);
+  assert.equal((await f.parent.send('inventory/save', { ...device, id: saved.id, compatibility: 'working' })).status, 200);
+  assert.equal((await f.child.send('state')).body.deviceInventory[0].compatibility, 'working');
+  assert.equal((await f.parent.send('inventory/save', { ...device, memberId: 'missing' })).status, 404);
+  assert.equal((await f.parent.send('inventory/save', { ...device, kind: 'unknown' })).status, 400);
+  assert.equal((await f.parent.send('inventory/save', { ...device, compatibility: 'autodetected' })).status, 400);
+  assert.equal((await f.parent.send('inventory/save', { ...device, name: '' })).status, 400);
+  assert.equal((await f.child.send('inventory/remove', { id: saved.id })).status, 403);
+  assert.equal((await f.parent.send('inventory/remove', { id: saved.id })).status, 200);
+  assert.deepEqual((await f.parent.send('state')).body.deviceInventory, []);
+  assert.equal((await f.parent.send('inventory/save', { ...device, id: saved.id })).status, 404);
+});
+
+test('3D layout is parent-managed, persisted, and visible to members and paired screens only', async () => {
+  const { starterHomePlan } = await import('../lib/home-plan.mjs');
+  const f = await fixture(), plan = starterHomePlan();
+  assert.equal((await f.parent.send('state')).body.homePlan, undefined);
+  assert.equal((await f.child.send('home-plan/save', { plan, version: 0 })).status, 403);
+  assert.equal((await client(f.db).send('home-plan/save', { plan, version: 0 })).status, 401);
+  assert.equal((await f.parent.send('home-plan/save', { plan, version: 0 })).body.homePlanVersion, 1);
+  const childState = (await f.child.send('state')).body;
+  assert.deepEqual(childState.homePlan, plan); assert.equal(childState.homePlanVersion, 1);
+  await f.parent.send('pair', {});
+  const screen = client(f.db); screen.setCookies({ dh_device: f.parent.cookies().dh_device });
+  assert.deepEqual((await screen.send('state')).body.homePlan, plan);
+  assert.equal((await screen.send('home-plan/save', { plan, version: 1 })).status, 401);
+  assert.equal((await client(f.db).send('state')).body.homePlan, undefined);
+  const stored = await read(f.db); assert.deepEqual(stored.state.homePlan, plan);
+});
+
+test('layout saves reject stale or simultaneous edits rather than overwriting another parent’s layout', async () => {
+  const { starterHomePlan } = await import('../lib/home-plan.mjs');
+  const f = await fixture(), plan = starterHomePlan();
+  const attempts = await Promise.all([f.parent.send('home-plan/save', { plan, version: 0 }), f.parent.send('home-plan/save', { plan, version: 0 })]);
+  assert.deepEqual(attempts.map(r => r.status).sort(), [200, 409]);
+  assert.equal((await f.parent.send('state')).body.homePlanVersion, 1);
+  assert.equal((await f.parent.send('home-plan/save', { plan, version: 0 })).status, 409);
+  assert.equal((await f.parent.send('home-plan/save', { plan, version: 1 })).status, 200);
+});
+
+test('invalid room geometry and out-of-room furniture leave the saved layout unchanged', async () => {
+  const { starterHomePlan } = await import('../lib/home-plan.mjs');
+  const f = await fixture(), plan = starterHomePlan();
+  await f.parent.send('home-plan/save', { plan, version: 0 });
+  const malformed = [
+    p => { p.rooms[0].width = -1; },
+    p => { p.rooms[0].x = 3000; },
+    p => { p.rooms[0].height = 0; },
+    p => { p.rooms[0].width = 200.5; },
+    p => { p.rooms[0].color = 'url(https://example.com)'; },
+    p => { p.rooms[1].x = 100; },
+    p => { p.rooms[1].id = p.rooms[0].id; },
+    p => { p.furniture[0].x = 499; },
+    p => { p.furniture[0].rotation = 45; },
+    p => { p.furniture[0].roomId = 'missing'; },
+    p => { p.furniture[0].kind = '__proto__'; },
+    p => { p.furniture[1].id = p.furniture[0].id; },
+    p => { p.rooms = []; },
+    p => { p.rooms = Array(21).fill(p.rooms[0]); },
+    p => { p.furniture = Array(101).fill(p.furniture[0]); },
+  ];
+  for (const mutate of malformed) {
+    const bad = structuredClone(plan); mutate(bad);
+    assert.equal((await f.parent.send('home-plan/save', { plan: bad, version: 1 })).status, 400);
+  }
+  const state = (await f.parent.send('state')).body;
+  assert.deepEqual(state.homePlan, plan); assert.equal(state.homePlanVersion, 1);
+});
+
+test('room dashboard links existing and new chore routines; deleting rooms clears links without deleting tasks', async () => {
+  const { starterHomePlan } = await import('../lib/home-plan.mjs');
+  const f = await fixture(), plan = starterHomePlan();
+  await f.parent.send('home-plan/save', { plan, version: 0 });
+  const task = await chore(f);
+  assert.equal((await f.child.send('chores/set-room', { id: task.choreId, roomId: 'living' })).status, 403);
+  assert.equal((await f.parent.send('chores/set-room', { id: task.choreId, roomId: 'missing' })).status, 400);
+  assert.equal((await f.parent.send('chores/set-room', { id: task.choreId, roomId: 'living' })).status, 200);
+  let state = (await f.child.send('state')).body;
+  assert.equal(state.chores.find(c => c.id === task.choreId).roomId, 'living');
+  assert.ok(state.occurrences.some(t => t.id === task.id));
+  const second = await chore(f, { title: 'Kitchen clean', roomId: 'kitchen' });
+  assert.equal((await f.parent.send('state')).body.chores.find(c => c.id === second.choreId).roomId, 'kitchen');
+  assert.equal((await f.parent.send('chores/add', { roomId: 'missing' })).status, 400);
+  plan.rooms = plan.rooms.filter(r => r.id !== 'living'); plan.furniture = plan.furniture.filter(i => i.roomId !== 'living');
+  assert.equal((await f.parent.send('home-plan/save', { plan, version: 1 })).status, 200);
+  state = (await f.parent.send('state')).body;
+  assert.equal(state.chores.find(c => c.id === task.choreId).roomId, null);
+  assert.ok(state.occurrences.some(t => t.id === task.id));
+  assert.equal(state.chores.find(c => c.id === second.choreId).roomId, 'kitchen');
+});

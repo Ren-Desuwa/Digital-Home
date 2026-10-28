@@ -25,3 +25,23 @@ A real family usability trial and Google consent/login round-trip remain outstan
 
 Deployed to https://digital-home.ren-desuwa.workers.dev on 19 October 2026.
 Cloudflare Worker version: `bc2b89a3-297e-42b7-8ccc-18bced737f72`.
+
+## Current local additions — device inventory and 3D home builder
+
+- Added parent-managed device inventory and a shared single-floor room/furniture layout with server-side persistence in the existing household aggregate. No schema migration is needed for these fields; existing households can use them without a reset.
+- Added room links for chore routines, room-based due/pending dashboards and the existing household home/away roster in the 3D view.
+- 27 integration tests pass, including new coverage for inventory CRUD, role/access checks, legacy households without layout fields, geometry validation, concurrent/stale layout saves and room-link cleanup without deleting tasks.
+- TypeScript checking and the production build pass. Parent/member server renders were checked for role-specific controls, starter rooms and finite projected geometry.
+- The starter SVG scene was rendered to PNG and visually inspected; the image is saved in `screenshots/home-builder-starter.png`. This is a scene render, not a browser screenshot.
+- Browser automation was unavailable: no browser surfaces were connected, and opening the in-app browser returned “Browser is not available: iab”. Interactive and responsive visual QA remains outstanding.
+- Changes are local and have not been deployed. No production data was modified and no actual family devices were entered.
+- The original October 19 production and Google configuration notes above are historical; production configuration was not rechecked for this addition.
+
+## 28 October 2026 — grid-based Home Studio
+
+- Built a separate static React/Three.js Studio for Vercel. Existing Cloudflare/D1 household workflows and layout storage remain separate; the new grid schema saves locally in the browser.
+- Added versioned JSON validation, geometry and collision rules, undo/redo, browser autosave with storage-error handling and cross-tab overwrite detection, export/import, PNG snapshots and interactive SVG fallback.
+- Seven new builder model tests pass: starter and empty-layout round-trips, rotated footprints, furniture collisions/rugs, wall crossing, canonical shared edges, malformed imports and unknown-field stripping. All 27 existing household integration tests pass.
+- TypeScript checking and both the standalone Vite production build and existing Vinext production build pass. The lazy-loaded Three.js chunk produces a size warning; it is not a build error.
+- Browser checks exercised floor painting through precise placement, walls/doors, furniture placement and collision rejection, removal, undo/redo, save, JSON export, empty plot, restoring the exported file, camera rotation and top view. The 390 px responsive check has no horizontal document overflow. Physical touchscreen gestures, long-session performance and family usability have not been verified.
+- Vercel configuration is supplied for repository-root and `web` project roots. Deployment status will be recorded after publication.

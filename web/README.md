@@ -1,5 +1,9 @@
 # Digital Home website
 
+## Project roadmap
+
+Read [the canonical active roadmap](../ROADMAP_NEXT.md) before planning new work. It covers public-platform accounts and migration, household chat, the Sims-style 3D home/furniture builder, design tools, collaboration, and mobile/public beta. The proposed replacement stack is not yet adopted. [ROADMAP.md](ROADMAP.md) records the original website phases.
+
 Google sign-in is supported alongside passwords and child PINs. See [Google setup](GOOGLE_LOGIN.md) for Google Cloud origins, callback URLs, Cloudflare secrets, migration, and deployment commands. Existing members connect Google from their own Household card after signing in.
 
 React + Vinext + Cloudflare D1. The private household hub includes accounts, parent/child permissions, chore scheduling and review, real recipe links, meals, groceries and optional rewards.
@@ -38,4 +42,4 @@ Shared screen: pair as a parent in Household, then sign out. Children can open p
 
 Recipe sources are external links, including YouTube. Starter preparation/serving values are estimates. Ingredients are manually entered and reviewed before shopping; no generated instructions or scraping. Preferences are tags, not allergy checks.
 
-Website phases 1–4 are implemented and require a real household trial. Mobile packaging, push notifications, offline editing and automatic presence are deferred. See [ROADMAP.md](ROADMAP.md).
+Website phases 1–4 are implemented and require a real household trial. Mobile packaging, push notifications, offline editing and automatic presence are deferred. See [the active expansion roadmap](../ROADMAP_NEXT.md) and [the original website phases](ROADMAP.md).
