@@ -12,6 +12,8 @@ The application lives in **web/**. It uses React 19, Vinext, and a Cloudflare D1
 
 ## Home Studio · Vercel preview
 
+Live Studio: [digital-home-dusky.vercel.app](https://digital-home-dusky.vercel.app). This release is a direct static deployment; automatic deployments require connecting GitHub in the personal Vercel account.
+
 The standalone grid builder is in `web/builder/`. It has a real Three.js scene, a 20 × 20 m tile grid, floor painting, edge walls, doors/windows, nine furniture pieces, collision checks, moving/rotation/colors, room naming, undo/redo, camera controls and a 2D fallback. It opens with a furnished four-room sample and offers an empty plot.
 
 Run `npm --prefix web run dev:builder` (port 5174), `npm --prefix web run test:builder`, and `npm --prefix web run build:builder`. The static build is emitted to ignored `web/dist-builder/`.
